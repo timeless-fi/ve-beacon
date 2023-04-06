@@ -1,32 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.4;
 
+import {CrossChainEnabled} from "openzeppelin-contracts/contracts/crosschain/CrossChainEnabled.sol";
+
 import "./base/Structs.sol";
 
 /// @title VeRecipient
 /// @author zefram.eth
 /// @notice Recipient on non-Ethereum networks that receives data from the Ethereum beacon
 /// and makes vetoken balances available on this network.
-abstract contract VeRecipient {
+abstract contract VeRecipient is CrossChainEnabled {
     /// -----------------------------------------------------------------------
     /// Errors
     /// -----------------------------------------------------------------------
 
     error VeRecipient__InvalidInput();
-
-    /// -----------------------------------------------------------------------
-    /// Modifiers
-    /// -----------------------------------------------------------------------
-
-    modifier onlyBeacon() {
-        _onlyBeacon();
-        _;
-    }
-
-    modifier onlyOwner() {
-        _onlyOwner();
-        _;
-    }
 
     /// -----------------------------------------------------------------------
     /// Constants
@@ -69,7 +57,7 @@ abstract contract VeRecipient {
         int128 globalSlope,
         uint256 globalTs,
         SlopeChange[] calldata slopeChanges_
-    ) external onlyBeacon {
+    ) external onlyCrossChainSender(beacon) {
         userData[user] = UserData({
             bias: userBias,
             slope: userSlope,
@@ -90,12 +78,12 @@ abstract contract VeRecipient {
         }
     }
 
-    function setBeacon(address newBeacon) external onlyOwner {
+    function setBeacon(address newBeacon) external onlyCrossChainSender(owner) {
         if (newBeacon == address(0)) revert VeRecipient__InvalidInput();
         beacon = newBeacon;
     }
 
-    function transferOwnership(address newOwner) external onlyOwner {
+    function transferOwnership(address newOwner) external onlyCrossChainSender(owner) {
         if (newOwner == address(0)) revert VeRecipient__InvalidInput();
         owner = newOwner;
     }
@@ -181,16 +169,6 @@ abstract contract VeRecipient {
     /// -----------------------------------------------------------------------
     /// Internal functions
     /// -----------------------------------------------------------------------
-
-    function _onlyBeacon() internal {
-        _onlyCrosschainSender(beacon);
-    }
-
-    function _onlyOwner() internal {
-        _onlyCrosschainSender(owner);
-    }
-
-    function _onlyCrosschainSender(address sender) internal virtual;
 
     function _deconstructBiasSlope(uint256 data) internal pure returns (int128 bias, int128 slope) {
         bias = int128(int256(data >> 128)); // upper 128 bits
