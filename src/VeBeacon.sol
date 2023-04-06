@@ -17,6 +17,7 @@ contract VeBeacon {
     /// -----------------------------------------------------------------------
 
     error VeBeacon__EpochIsZero();
+    error VeBeacon__LeftoverEth();
     error VeBeacon__UserNotInitialized();
 
     /// -----------------------------------------------------------------------
@@ -59,9 +60,67 @@ contract VeBeacon {
     /// External functions
     /// -----------------------------------------------------------------------
 
+    /// @notice Broadcasts a user's vetoken balance to another chain. Should use getRequiredMessageValue()
+    /// to compute the msg.value required when calling this function.
+    /// @param user the user address
+    /// @param chainId the target chain's ID
+    /// @param gasLimit the gas limit of the call to the recipient
+    /// @param maxFeePerGas the max gas price used, only relevant for some chains (e.g. Arbitrum)
     function broadcastVeBalance(address user, uint256 chainId, uint256 gasLimit, uint256 maxFeePerGas)
         external
         payable
+    {
+        _broadcastVeBalance(user, chainId, gasLimit, maxFeePerGas);
+        if (address(this).balance != 0) revert VeBeacon__LeftoverEth();
+    }
+
+    /// @notice Broadcasts a user's vetoken balance to a list of other chains. Should use getRequiredMessageValue()
+    /// to compute the msg.value required when calling this function (currently only applicable to Arbitrum).
+    /// @param user the user address
+    /// @param chainIdList the chain ID of the target chains
+    /// @param gasLimit the gas limit of each call to the recipient
+    /// @param maxFeePerGas the max gas price used, only relevant for some chains (e.g. Arbitrum)
+    function broadcastVeBalanceMultiple(
+        address user,
+        uint256[] calldata chainIdList,
+        uint256 gasLimit,
+        uint256 maxFeePerGas
+    ) external payable {
+        uint256 chainIdListLength = chainIdList.length;
+        for (uint256 i; i < chainIdListLength;) {
+            _broadcastVeBalance(user, chainIdList[i], gasLimit, maxFeePerGas);
+
+            unchecked {
+                ++i;
+            }
+        }
+        if (address(this).balance != 0) revert VeBeacon__LeftoverEth();
+    }
+
+    /// @notice Computes the msg.value needed when calling broadcastVeBalance(). Only relevant for Arbitrum.
+    /// @param user the user address
+    /// @param chainId the target chain's ID
+    /// @param gasLimit the gas limit of the call to the recipient
+    /// @param maxFeePerGas the max gas price used, only relevant for some chains (e.g. Arbitrum)
+    /// @return the msg.value required
+    function getRequiredMessageValue(address user, uint256 chainId, uint256 gasLimit, uint256 maxFeePerGas)
+        external
+        view
+        returns (uint256)
+    {
+        if (chainId != UniversalBridgeLib.CHAINID_ARBITRUM) return 0;
+        (bytes memory data,,) = _constructBroadcastVeBalanceCalldata(user);
+        return UniversalBridgeLib.getRequiredMessageValue(chainId, data.length, gasLimit, maxFeePerGas);
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Internal functions
+    /// -----------------------------------------------------------------------
+
+    function _constructBroadcastVeBalanceCalldata(address user)
+        internal
+        view
+        returns (bytes memory data, bool didUpdateState, uint256 lastSlopeChangeTimestamp_)
     {
         // get user voting escrow data
         uint256 epoch = votingEscrow.user_point_epoch(user);
@@ -77,13 +136,13 @@ contract VeBeacon {
         (int128 globalBias, int128 globalSlope, uint256 globalTs,) = votingEscrow.point_history(epoch);
         uint256 lastEpochStartTimestamp = (globalTs / (1 weeks)) * (1 weeks);
         SlopeChange[] memory slopeChanges;
-        uint256 lastSlopeChangeTimestamp_ = lastSlopeChangeTimestamp;
         if (lastEpochStartTimestamp + (1 weeks) <= block.timestamp) {
             // there's a gap between the last voting escrow update and the current time
             // need to push slope_changes of the gap to the recipient
 
             // we can skip any of the slope changes between (lastEpochStartTimestamp + 1 weeks) and lastSlopeChangeTimestamp inclusive
             // since they've already been pushed to the recipient before
+            lastSlopeChangeTimestamp_ = lastSlopeChangeTimestamp;
             if (lastEpochStartTimestamp + (1 weeks) <= lastSlopeChangeTimestamp_) {
                 // the first epoch's slope change to push would be lastSlopeChangeTimestamp + 1 weeks
                 lastEpochStartTimestamp = lastSlopeChangeTimestamp_;
@@ -106,12 +165,13 @@ contract VeBeacon {
                         ++i;
                     }
                 }
-                lastSlopeChangeTimestamp = lastEpochStartTimestamp;
+                didUpdateState = true;
+                lastSlopeChangeTimestamp_ = lastEpochStartTimestamp;
             }
         }
 
         // send data to recipient on target chain using UniversalBridgeLib
-        bytes memory data = abi.encodeWithSelector(
+        data = abi.encodeWithSelector(
             VeRecipient.updateVeBalance.selector,
             user,
             userBias,
@@ -125,7 +185,15 @@ contract VeBeacon {
             globalTs,
             slopeChanges
         );
-        UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, maxFeePerGas);
+    }
+
+    function _broadcastVeBalance(address user, uint256 chainId, uint256 gasLimit, uint256 maxFeePerGas) internal {
+        (bytes memory data, bool didUpdateState, uint256 lastSlopeChangeTimestamp_) =
+            _constructBroadcastVeBalanceCalldata(user);
+        if (didUpdateState) lastSlopeChangeTimestamp = lastSlopeChangeTimestamp_;
+
+        uint256 requiredValue = UniversalBridgeLib.getRequiredMessageValue(chainId, data.length, gasLimit, maxFeePerGas);
+        UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, requiredValue, maxFeePerGas);
 
         emit BroadcastVeBalance(user, chainId);
     }
