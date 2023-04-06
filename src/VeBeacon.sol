@@ -20,6 +20,12 @@ contract VeBeacon {
     error VeBeacon__UserNotInitialized();
 
     /// -----------------------------------------------------------------------
+    /// Events
+    /// -----------------------------------------------------------------------
+
+    event BroadcastVeBalance(address indexed user, uint256 indexed chainId);
+
+    /// -----------------------------------------------------------------------
     /// Constants
     /// -----------------------------------------------------------------------
 
@@ -120,5 +126,7 @@ contract VeBeacon {
             slopeChanges
         );
         UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, maxFeePerGas);
+
+        emit BroadcastVeBalance(user, chainId);
     }
 }

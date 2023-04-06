@@ -17,6 +17,14 @@ abstract contract VeRecipient is CrossChainEnabled {
     error VeRecipient__InvalidInput();
 
     /// -----------------------------------------------------------------------
+    /// Events
+    /// -----------------------------------------------------------------------
+
+    event UpdateVeBalance(address indexed user);
+    event SetBeacon(address indexed newBeacon);
+    event TransferOwnership(address indexed newOwner);
+
+    /// -----------------------------------------------------------------------
     /// Constants
     /// -----------------------------------------------------------------------
 
@@ -76,16 +84,20 @@ abstract contract VeRecipient is CrossChainEnabled {
                 ++i;
             }
         }
+
+        emit UpdateVeBalance(user);
     }
 
     function setBeacon(address newBeacon) external onlyCrossChainSender(owner) {
         if (newBeacon == address(0)) revert VeRecipient__InvalidInput();
         beacon = newBeacon;
+        emit SetBeacon(newBeacon);
     }
 
     function transferOwnership(address newOwner) external onlyCrossChainSender(owner) {
         if (newOwner == address(0)) revert VeRecipient__InvalidInput();
         owner = newOwner;
+        emit TransferOwnership(newOwner);
     }
 
     /// -----------------------------------------------------------------------
