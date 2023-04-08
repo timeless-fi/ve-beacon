@@ -6,16 +6,7 @@ struct SlopeChange {
     int128 change;
 }
 
-struct UserData {
-    int128 bias;
-    int128 slope;
-    uint256 ts;
-    uint256 delegated;
-    uint256 received;
-    uint256 expiryData;
-}
-
-struct GlobalData {
+struct Point {
     int128 bias;
     int128 slope;
     uint256 ts;

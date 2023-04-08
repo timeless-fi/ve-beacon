@@ -36,8 +36,8 @@ abstract contract VeRecipient is CrossChainEnabled {
 
     address public beacon;
     address public owner;
-    mapping(address => UserData) public userData;
-    GlobalData public globalData;
+    mapping(address => Point) public userData;
+    Point public globalData;
     mapping(uint256 => int128) public slopeChanges;
 
     /// -----------------------------------------------------------------------
@@ -58,23 +58,13 @@ abstract contract VeRecipient is CrossChainEnabled {
         int128 userBias,
         int128 userSlope,
         uint256 userTs,
-        uint256 delegated,
-        uint256 received,
-        uint256 expiryData,
         int128 globalBias,
         int128 globalSlope,
         uint256 globalTs,
         SlopeChange[] calldata slopeChanges_
     ) external onlyCrossChainSender(beacon) {
-        userData[user] = UserData({
-            bias: userBias,
-            slope: userSlope,
-            ts: userTs,
-            delegated: delegated,
-            received: received,
-            expiryData: expiryData
-        });
-        globalData = GlobalData({bias: globalBias, slope: globalSlope, ts: globalTs});
+        userData[user] = Point({bias: userBias, slope: userSlope, ts: userTs});
+        globalData = Point({bias: globalBias, slope: globalSlope, ts: globalTs});
 
         uint256 slopeChangesLength = slopeChanges_.length;
         for (uint256 i; i < slopeChangesLength;) {
@@ -106,55 +96,16 @@ abstract contract VeRecipient is CrossChainEnabled {
 
     function balanceOf(address user) external view returns (uint256) {
         // storage loads
-        UserData memory u = userData[user];
+        Point memory u = userData[user];
 
         // compute vetoken balance
         int256 veBalance = u.bias - u.slope * int128(int256(block.timestamp - u.ts));
         if (veBalance < 0) veBalance = 0;
-
-        // adjust balance with delegation info
-        uint256 nextExpiry = u.expiryData % (2 ** 128);
-        if (nextExpiry != 0 && nextExpiry < block.timestamp) {
-            // if the account has a negative boost in circulation
-            // we over penalize by setting their adjusted balance to 0
-            // this is because we don't want to iterate to find the real
-            // value
-            return 0;
-        }
-        if (u.delegated != 0) {
-            (int128 bias, int128 slope) = _deconstructBiasSlope(u.delegated);
-
-            // we take the absolute value, since delegated boost can be negative
-            // if any outstanding negative boosts are in circulation
-            // this can inflate the vetoken balance of a user
-            // taking the absolute value has the effect that it costs
-            // a user to negatively impact another's vetoken balance
-            veBalance -= _abs(slope * int256(block.timestamp) + bias);
-        }
-        if (u.received != 0) {
-            (int128 bias, int128 slope) = _deconstructBiasSlope(u.received);
-
-            // similar to delegated boost, our received boost can be negative
-            // if any outstanding negative boosts are in our possession
-            // However, unlike delegated boost, we do not negatively impact
-            // our adjusted balance due to negative boosts. Instead we take
-            // whichever is greater between 0 and the value of our received
-            // boosts.
-            veBalance += _max(slope * int256(block.timestamp) + bias, 0);
-        }
-
-        // since we took the absolute value of our delegated boost, it now instead of
-        // becoming negative is positive, and will continue to increase ...
-        // meaning if we keep a negative outstanding delegated balance for long
-        // enough it will not only decrease our vetoken balance but also our received
-        // boost, however we return the maximum between our adjusted balance and 0
-        // when delegating boost, received boost isn't used for determining how
-        // much we can delegate.
-        return uint256(_max(veBalance, 0));
+        return uint256(veBalance);
     }
 
     function totalSupply() external view returns (uint256) {
-        GlobalData memory g = globalData;
+        Point memory g = globalData;
         uint256 ti = (g.ts / (1 weeks)) * (1 weeks);
         for (uint256 i; i < MAX_ITERATIONS;) {
             ti += 1 weeks;
