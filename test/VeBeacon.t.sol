@@ -61,24 +61,48 @@ contract VeBeaconTest is Test {
         // push balance to recipient
         beacon.broadcastVeBalance(address(this), 0, 0, 0);
 
-        // check balances
-        assertEqDecimal(
-            recipient.balanceOf(address(this)), votingEscrow.balanceOf(address(this)), 18, "balances not equal"
-        );
+        _verifyEquivalence(waitTime);
+    }
 
-        // check total supplies
-        assertEqDecimal(recipient.totalSupply(), votingEscrow.totalSupply(), 18, "supplies not equal");
+    function test_lockMultipleTimes(uint256 waitTime) public {
+        waitTime = bound(waitTime, 0, SLOPE_CHANGES_LENGTH * 1 weeks);
 
-        // wait for some time
-        skip(waitTime);
+        // mint token
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+        deal(address(token), address(this), amount);
 
-        // check balances
-        assertEqDecimal(
-            recipient.balanceOf(address(this)), votingEscrow.balanceOf(address(this)), 18, "later balances not equal"
-        );
+        // lock for vetoken for 1 year
+        token.approve(address(votingEscrow), amount);
+        uint256 lockTime = 365 days;
+        votingEscrow.create_lock(amount, block.timestamp + lockTime);
 
-        // check total supplies
-        assertEqDecimal(recipient.totalSupply(), votingEscrow.totalSupply(), 18, "later supplies not equal");
+        // push balance to recipient
+        for (uint256 i; i < 10; i++) {
+            beacon.broadcastVeBalance(address(this), 0, 0, 0);
+        }
+
+        _verifyEquivalence(waitTime);
+    }
+
+    function test_broadcastMultiple(uint256 waitTime) public {
+        waitTime = bound(waitTime, 0, SLOPE_CHANGES_LENGTH * 1 weeks);
+
+        // mint token
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+        deal(address(token), address(this), amount);
+
+        // lock for vetoken for 1 year
+        token.approve(address(votingEscrow), amount);
+        uint256 lockTime = 365 days;
+        votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+        // push balance to recipient
+        uint256[] memory chainIdList = new uint256[](10);
+        beacon.broadcastVeBalanceMultiple(address(this), chainIdList, 0, 0);
+
+        _verifyEquivalence(waitTime);
     }
 
     /// -----------------------------------------------------------------------
@@ -91,5 +115,26 @@ contract VeBeaconTest is Test {
 
     function getCreate3ContractSalt(string memory name) internal view virtual returns (bytes32) {
         return keccak256(bytes(string.concat(name, "-v", version)));
+    }
+
+    function _verifyEquivalence(uint256 waitTime) internal {
+        _verifyEquivalence(waitTime, address(this));
+    }
+
+    function _verifyEquivalence(uint256 waitTime, address user) internal {
+        // check balances
+        assertEqDecimal(recipient.balanceOf(user), votingEscrow.balanceOf(user), 18, "balances not equal");
+
+        // check total supplies
+        assertEqDecimal(recipient.totalSupply(), votingEscrow.totalSupply(), 18, "supplies not equal");
+
+        // wait for some time
+        skip(waitTime);
+
+        // check balances
+        assertEqDecimal(recipient.balanceOf(user), votingEscrow.balanceOf(user), 18, "later balances not equal");
+
+        // check total supplies
+        assertEqDecimal(recipient.totalSupply(), votingEscrow.totalSupply(), 18, "later supplies not equal");
     }
 }
