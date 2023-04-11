@@ -30,6 +30,7 @@ contract VeBeacon {
     /// -----------------------------------------------------------------------
 
     uint256 internal constant SLOPE_CHANGES_LENGTH = 8;
+    uint256 internal constant DATA_LENGTH = 4 + 8 * 32 + 32 + SLOPE_CHANGES_LENGTH * 64; // 4b selector + 8 * 32b args + 32b array length + SLOPE_CHANGES_LENGTH * 64b array content
 
     /// -----------------------------------------------------------------------
     /// Immutable params
@@ -89,19 +90,16 @@ contract VeBeacon {
     }
 
     /// @notice Computes the msg.value needed when calling broadcastVeBalance(). Only relevant for Arbitrum.
-    /// @param user the user address
     /// @param chainId the target chain's ID
     /// @param gasLimit the gas limit of the call to the recipient
     /// @param maxFeePerGas the max gas price used, only relevant for some chains (e.g. Arbitrum)
     /// @return the msg.value required
-    function getRequiredMessageValue(address user, uint256 chainId, uint256 gasLimit, uint256 maxFeePerGas)
+    function getRequiredMessageValue(uint256 chainId, uint256 gasLimit, uint256 maxFeePerGas)
         external
         view
         returns (uint256)
     {
-        if (chainId != UniversalBridgeLib.CHAINID_ARBITRUM) return 0;
-        bytes memory data = _constructBroadcastVeBalanceCalldata(user);
-        return UniversalBridgeLib.getRequiredMessageValue(chainId, data.length, gasLimit, maxFeePerGas);
+        return UniversalBridgeLib.getRequiredMessageValue(chainId, DATA_LENGTH, gasLimit, maxFeePerGas);
     }
 
     /// -----------------------------------------------------------------------
@@ -153,7 +151,7 @@ contract VeBeacon {
     {
         bytes memory data = _constructBroadcastVeBalanceCalldata(user);
 
-        uint256 requiredValue = UniversalBridgeLib.getRequiredMessageValue(chainId, data.length, gasLimit, maxFeePerGas);
+        uint256 requiredValue = UniversalBridgeLib.getRequiredMessageValue(chainId, DATA_LENGTH, gasLimit, maxFeePerGas);
         UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, requiredValue, maxFeePerGas);
 
         emit BroadcastVeBalance(user, chainId);

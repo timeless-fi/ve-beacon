@@ -132,8 +132,7 @@ contract VeBeaconTest is Test {
         // check message value for arbitrum
         uint256 gasLimit = 1e6;
         uint256 maxFeePerGas = 0.1 gwei;
-        uint256 value =
-            beacon.getRequiredMessageValue(address(this), UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas);
+        uint256 value = beacon.getRequiredMessageValue(UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas);
         uint256 dataLength = 4 + 8 * 32 + 32 + SLOPE_CHANGES_LENGTH * 64; // 4b selector + 8 * 32b args + 32b array length + SLOPE_CHANGES_LENGTH * 64b array content
         uint256 expectedValue = UniversalBridgeLib.getRequiredMessageValue(
             UniversalBridgeLib.CHAINID_ARBITRUM, dataLength, gasLimit, maxFeePerGas
@@ -141,8 +140,7 @@ contract VeBeaconTest is Test {
         assertEqDecimal(value, expectedValue, 18, "arbitrum message value doesn't match");
 
         // check message value for non-arbitrum network
-        value =
-            beacon.getRequiredMessageValue(address(this), UniversalBridgeLib.CHAINID_OPTIMISM, gasLimit, maxFeePerGas);
+        value = beacon.getRequiredMessageValue(UniversalBridgeLib.CHAINID_OPTIMISM, gasLimit, maxFeePerGas);
         expectedValue = UniversalBridgeLib.getRequiredMessageValue(
             UniversalBridgeLib.CHAINID_OPTIMISM, dataLength, gasLimit, maxFeePerGas
         );
@@ -169,9 +167,7 @@ contract VeBeaconTest is Test {
         chainIdList[4] = UniversalBridgeLib.CHAINID_GNOSIS;
         uint256 gasLimit = 1e6;
         uint256 maxFeePerGas = 0.1 gwei;
-        uint256 value = prodBeacon.getRequiredMessageValue(
-            address(this), UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas
-        );
+        uint256 value = prodBeacon.getRequiredMessageValue(UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas);
         prodBeacon.broadcastVeBalanceMultiple{value: value}(address(this), chainIdList, gasLimit, maxFeePerGas);
     }
 
