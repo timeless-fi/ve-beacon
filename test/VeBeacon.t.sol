@@ -7,6 +7,8 @@ import "forge-std/Test.sol";
 
 import "solmate/tokens/ERC20.sol";
 
+import "universal-bridge-lib/UniversalBridgeLib.sol";
+
 import "./mocks/MockVeBeacon.sol";
 import "./mocks/MockVeRecipient.sol";
 import "./interfaces/ISmartWalletChecker.sol";
@@ -19,6 +21,7 @@ contract VeBeaconTest is Test {
     string constant version = "1.0.0";
 
     MockVeBeacon beacon;
+    VeBeacon prodBeacon;
     MockVeRecipient recipient;
 
     function setUp() public {
@@ -27,6 +30,14 @@ contract VeBeaconTest is Test {
                 getCreate3ContractSalt("MockVeBeacon"),
                 bytes.concat(
                     type(MockVeBeacon).creationCode, abi.encode(votingEscrow, getCreate3Contract("MockVeRecipient"))
+                )
+            )
+        );
+        prodBeacon = VeBeacon(
+            create3.deploy(
+                getCreate3ContractSalt("VeBeacon"),
+                bytes.concat(
+                    type(VeBeacon).creationCode, abi.encode(votingEscrow, getCreate3Contract("MockVeRecipient"))
                 )
             )
         );
@@ -103,6 +114,63 @@ contract VeBeaconTest is Test {
         beacon.broadcastVeBalanceMultiple(address(this), chainIdList, 0, 0);
 
         _verifyEquivalence(waitTime);
+    }
+
+    function test_getRequiredMessageValue() public {
+        // mint token
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+        deal(address(token), address(this), amount);
+
+        // lock for vetoken for 1 year
+        token.approve(address(votingEscrow), amount);
+        uint256 lockTime = 365 days;
+        votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+        // check message value for arbitrum
+        uint256 gasLimit = 1e6;
+        uint256 maxFeePerGas = 0.1 gwei;
+        uint256 value =
+            beacon.getRequiredMessageValue(address(this), UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas);
+        uint256 dataLength = 4 + 8 * 32 + 32 + SLOPE_CHANGES_LENGTH * 64; // 4b selector + 8 * 32b args + 32b array length + SLOPE_CHANGES_LENGTH * 64b array content
+        uint256 expectedValue = UniversalBridgeLib.getRequiredMessageValue(
+            UniversalBridgeLib.CHAINID_ARBITRUM, dataLength, gasLimit, maxFeePerGas
+        );
+        assertEqDecimal(value, expectedValue, 18, "arbitrum message value doesn't match");
+
+        // check message value for non-arbitrum network
+        value =
+            beacon.getRequiredMessageValue(address(this), UniversalBridgeLib.CHAINID_OPTIMISM, gasLimit, maxFeePerGas);
+        expectedValue = UniversalBridgeLib.getRequiredMessageValue(
+            UniversalBridgeLib.CHAINID_OPTIMISM, dataLength, gasLimit, maxFeePerGas
+        );
+        assertEqDecimal(value, expectedValue, 18, "non-arbitrum message value doesn't match");
+    }
+
+    function test_prodBeaconBroadcast() public {
+        // mint token
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+        deal(address(token), address(this), amount);
+
+        // lock for vetoken for 1 year
+        token.approve(address(votingEscrow), amount);
+        uint256 lockTime = 365 days;
+        votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+        // push balance to recipient
+        uint256[] memory chainIdList = new uint256[](5);
+        chainIdList[0] = UniversalBridgeLib.CHAINID_ARBITRUM;
+        chainIdList[1] = UniversalBridgeLib.CHAINID_OPTIMISM;
+        chainIdList[2] = UniversalBridgeLib.CHAINID_POLYGON;
+        chainIdList[3] = UniversalBridgeLib.CHAINID_BSC;
+        chainIdList[4] = UniversalBridgeLib.CHAINID_GNOSIS;
+        uint256 gasLimit = 1e6;
+        uint256 maxFeePerGas = 0.1 gwei;
+        uint256 value = prodBeacon.getRequiredMessageValue(
+            address(this), UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas
+        );
+        prodBeacon.broadcastVeBalanceMultiple{value: value}(address(this), chainIdList, gasLimit, maxFeePerGas);
     }
 
     /// -----------------------------------------------------------------------

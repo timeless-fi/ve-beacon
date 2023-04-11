@@ -128,21 +128,4 @@ abstract contract VeRecipient is CrossChainEnabled {
         if (g.bias < 0) g.bias = 0;
         return uint256(uint128(g.bias));
     }
-
-    /// -----------------------------------------------------------------------
-    /// Internal functions
-    /// -----------------------------------------------------------------------
-
-    function _deconstructBiasSlope(uint256 data) internal pure returns (int128 bias, int128 slope) {
-        bias = int128(int256(data >> 128)); // upper 128 bits
-        slope = -int128(int256(data % (2 ** 128))); // negation of the lower 128 bits
-    }
-
-    function _abs(int256 x) internal pure returns (int256) {
-        return x > 0 ? x : -x;
-    }
-
-    function _max(int256 x, int256 y) internal pure returns (int256) {
-        return x > y ? x : y;
-    }
 }
