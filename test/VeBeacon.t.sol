@@ -14,6 +14,8 @@ import "./mocks/MockVeRecipient.sol";
 import "./interfaces/ISmartWalletChecker.sol";
 
 contract VeBeaconTest is Test {
+    using stdStorage for StdStorage;
+
     CREATE3Factory constant create3 = CREATE3Factory(0x9fBB3DF7C40Da2e5A0dE984fFE2CCB7C47cd0ABf);
     IVotingEscrow constant votingEscrow = IVotingEscrow(0xf17d23136B4FeAd139f54fB766c8795faae09660);
     ISmartWalletChecker constant smartWalletChecker = ISmartWalletChecker(0x0CCdf95bAF116eDE5251223Ca545D0ED02287a8f);
@@ -171,6 +173,30 @@ contract VeBeaconTest is Test {
             address(this), UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas
         );
         prodBeacon.broadcastVeBalanceMultiple{value: value}(address(this), chainIdList, gasLimit, maxFeePerGas);
+    }
+
+    function test_fail_userNotInitialized() public {
+        vm.expectRevert(VeBeacon.VeBeacon__UserNotInitialized.selector);
+        beacon.broadcastVeBalance(address(0x69), 0, 0, 0);
+    }
+
+    function test_fail_zeroEpoch() public {
+        // mint token
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+        deal(address(token), address(this), amount);
+
+        // lock for vetoken for 1 year
+        token.approve(address(votingEscrow), amount);
+        uint256 lockTime = 365 days;
+        votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+        // set epoch to zero
+        stdstore.target(address(votingEscrow)).sig("epoch()").checked_write(uint256(0));
+
+        // broadcast which should revert
+        vm.expectRevert(VeBeacon.VeBeacon__EpochIsZero.selector);
+        beacon.broadcastVeBalance(address(this), 0, 0, 0);
     }
 
     /// -----------------------------------------------------------------------
