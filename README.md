@@ -1,4 +1,6 @@
-# Foundry template
+# VeBeacon
+
+[![codecov](https://codecov.io/gh/timeless-fi/ve-beacon/branch/main/graph/badge.svg?token=VME1VE3HXH)](https://codecov.io/gh/timeless-fi/ve-beacon)
 
 This is a template for a Foundry project.
 
