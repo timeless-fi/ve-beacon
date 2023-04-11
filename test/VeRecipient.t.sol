@@ -22,6 +22,8 @@ contract VeRecipientTest is Test {
     MockVeBeacon beacon;
     MockVeRecipient recipient;
 
+    error InvalidCrossChainSender(address actual, address expected);
+
     function setUp() public {
         beacon = MockVeBeacon(
             create3.deploy(
@@ -63,6 +65,49 @@ contract VeRecipientTest is Test {
         } else {
             recipient.transferOwnership(newOwner);
             assertEq(recipient.owner(), newOwner, "didn't set new owner");
+        }
+    }
+
+    function test_fail_updateVeBalanceAsRando(
+        address user,
+        int128 userBias,
+        int128 userSlope,
+        uint256 userTs,
+        int128 globalBias,
+        int128 globalSlope,
+        uint256 globalTs,
+        SlopeChange[] calldata slopeChanges_
+    ) public {
+        address rando = address(0x69);
+        vm.startPrank(rando);
+        vm.expectRevert(abi.encodeWithSelector(InvalidCrossChainSender.selector, rando, beacon));
+        recipient.updateVeBalance(user, userBias, userSlope, userTs, globalBias, globalSlope, globalTs, slopeChanges_);
+        vm.stopPrank();
+    }
+
+    function test_fail_setBeaconAsRando(address newBeacon) public {
+        address rando = address(0x69);
+        if (newBeacon == address(0)) {
+            vm.expectRevert(VeRecipient.VeRecipient__InvalidInput.selector);
+            recipient.setBeacon(newBeacon);
+        } else {
+            vm.startPrank(rando);
+            vm.expectRevert(abi.encodeWithSelector(InvalidCrossChainSender.selector, rando, address(this)));
+            recipient.setBeacon(newBeacon);
+            vm.stopPrank();
+        }
+    }
+
+    function test_fail_transferOwnershipAsRando(address newOwner) public {
+        address rando = address(0x69);
+        if (newOwner == address(0)) {
+            vm.expectRevert(VeRecipient.VeRecipient__InvalidInput.selector);
+            recipient.transferOwnership(newOwner);
+        } else {
+            vm.startPrank(rando);
+            vm.expectRevert(abi.encodeWithSelector(InvalidCrossChainSender.selector, rando, address(this)));
+            recipient.transferOwnership(newOwner);
+            vm.stopPrank();
         }
     }
 
