@@ -106,7 +106,10 @@ contract VeBeacon {
     /// Internal functions
     /// -----------------------------------------------------------------------
 
-    function _constructBroadcastVeBalanceCalldata(address user) internal view returns (bytes memory data) {
+    function _broadcastVeBalance(address user, uint256 chainId, uint256 gasLimit, uint256 maxFeePerGas)
+        internal
+        virtual
+    {
         // get user voting escrow data
         uint256 epoch = votingEscrow.user_point_epoch(user);
         if (epoch == 0) revert VeBeacon__UserNotInitialized();
@@ -132,7 +135,7 @@ contract VeBeacon {
         }
 
         // send data to recipient on target chain using UniversalBridgeLib
-        data = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             VeRecipient.updateVeBalance.selector,
             user,
             userBias,
@@ -143,14 +146,6 @@ contract VeBeacon {
             globalTs,
             slopeChanges
         );
-    }
-
-    function _broadcastVeBalance(address user, uint256 chainId, uint256 gasLimit, uint256 maxFeePerGas)
-        internal
-        virtual
-    {
-        bytes memory data = _constructBroadcastVeBalanceCalldata(user);
-
         uint256 requiredValue = UniversalBridgeLib.getRequiredMessageValue(chainId, DATA_LENGTH, gasLimit, maxFeePerGas);
         UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, requiredValue, maxFeePerGas);
 
