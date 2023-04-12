@@ -71,11 +71,13 @@ forge test -f mainnet
 #### Dryrun
 
 ```
-forge script script/Deploy.s.sol -f mainnet
+forge script script/DeployBeacon.s.sol -f mainnet
+forge script script/DeployRecipient.s.sol -f [recipient-network]
 ```
 
 ### Live
 
 ```
-forge script script/Deploy.s.sol -f mainnet --verify --broadcast
+forge script script/DeployBeacon.s.sol -f mainnet --verify --broadcast
+forge script script/DeployRecipient.s.sol -f [recipient-network] --verify --broadcast
 ```
