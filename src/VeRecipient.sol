@@ -128,4 +128,12 @@ abstract contract VeRecipient is CrossChainEnabled {
         if (g.bias < 0) g.bias = 0;
         return uint256(uint128(g.bias));
     }
+
+    function user_point_history__ts(address user, uint256 /*epoch*/ ) external view returns (uint256) {
+        return userData[user].ts;
+    }
+
+    function user_point_epoch(address /*user*/ ) external pure returns (uint256) {
+        return 0;
+    }
 }

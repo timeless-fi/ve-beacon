@@ -255,6 +255,13 @@ contract VeBeaconTest is Test {
         // check total supplies
         assertEqDecimal(recipient.totalSupply(), votingEscrow.totalSupply(), 18, "supplies not equal");
 
+        // check user timestamp
+        assertEq(
+            recipient.user_point_history__ts(user, recipient.user_point_epoch(user)),
+            votingEscrow.user_point_history__ts(user, votingEscrow.user_point_epoch(user)),
+            "user point timestamp not equal"
+        );
+
         // wait for some time
         skip(waitTime);
 
@@ -266,9 +273,15 @@ contract VeBeaconTest is Test {
     }
 
     function _verifyEquivalence(uint256 waitTime, address[] memory users) internal {
-        // check balances
         for (uint256 i; i < users.length; i++) {
+            // check balance
             assertEqDecimal(recipient.balanceOf(users[i]), votingEscrow.balanceOf(users[i]), 18, "balances not equal");
+            // check user timestamp
+            assertEq(
+                recipient.user_point_history__ts(users[i], recipient.user_point_epoch(users[i])),
+                votingEscrow.user_point_history__ts(users[i], votingEscrow.user_point_epoch(users[i])),
+                "user point timestamp not equal"
+            );
         }
 
         // check total supplies
