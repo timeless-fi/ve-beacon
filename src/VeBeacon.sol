@@ -110,42 +110,46 @@ contract VeBeacon {
         internal
         virtual
     {
-        // get user voting escrow data
-        uint256 epoch = votingEscrow.user_point_epoch(user);
-        if (epoch == 0) revert VeBeacon__UserNotInitialized();
-        (int128 userBias, int128 userSlope, uint256 userTs,) = votingEscrow.user_point_history(user, epoch);
+        bytes memory data;
+        {
+            // get user voting escrow data
+            uint256 epoch = votingEscrow.user_point_epoch(user);
+            if (epoch == 0) revert VeBeacon__UserNotInitialized();
+            (int128 userBias, int128 userSlope, uint256 userTs,) = votingEscrow.user_point_history(user, epoch);
 
-        // get global data
-        epoch = votingEscrow.epoch();
-        if (epoch == 0) revert VeBeacon__EpochIsZero();
-        (int128 globalBias, int128 globalSlope, uint256 globalTs,) = votingEscrow.point_history(epoch);
+            // get global data
+            epoch = votingEscrow.epoch();
+            if (epoch == 0) revert VeBeacon__EpochIsZero();
+            (int128 globalBias, int128 globalSlope, uint256 globalTs,) = votingEscrow.point_history(epoch);
 
-        // fetch slope changes in the range [currentEpochStartTimestamp + 1 weeks, currentEpochStartTimestamp + (SLOPE_CHANGES_LENGTH + 1) * 1 weeks]
-        uint256 currentEpochStartTimestamp = (block.timestamp / (1 weeks)) * (1 weeks);
-        SlopeChange[] memory slopeChanges = new SlopeChange[](SLOPE_CHANGES_LENGTH);
-        for (uint256 i; i < SLOPE_CHANGES_LENGTH;) {
-            currentEpochStartTimestamp += 1 weeks;
-            slopeChanges[i] = SlopeChange({
-                ts: currentEpochStartTimestamp,
-                change: votingEscrow.slope_changes(currentEpochStartTimestamp)
-            });
-            unchecked {
-                ++i;
+            // fetch slope changes in the range [currentEpochStartTimestamp + 1 weeks, currentEpochStartTimestamp + (SLOPE_CHANGES_LENGTH + 1) * 1 weeks]
+            uint256 currentEpochStartTimestamp = (block.timestamp / (1 weeks)) * (1 weeks);
+            SlopeChange[] memory slopeChanges = new SlopeChange[](SLOPE_CHANGES_LENGTH);
+            for (uint256 i; i < SLOPE_CHANGES_LENGTH;) {
+                currentEpochStartTimestamp += 1 weeks;
+                slopeChanges[i] = SlopeChange({
+                    ts: currentEpochStartTimestamp,
+                    change: votingEscrow.slope_changes(currentEpochStartTimestamp)
+                });
+                unchecked {
+                    ++i;
+                }
             }
+
+            data = abi.encodeWithSelector(
+                VeRecipient.updateVeBalance.selector,
+                user,
+                userBias,
+                userSlope,
+                userTs,
+                globalBias,
+                globalSlope,
+                globalTs,
+                slopeChanges
+            );
         }
 
         // send data to recipient on target chain using UniversalBridgeLib
-        bytes memory data = abi.encodeWithSelector(
-            VeRecipient.updateVeBalance.selector,
-            user,
-            userBias,
-            userSlope,
-            userTs,
-            globalBias,
-            globalSlope,
-            globalTs,
-            slopeChanges
-        );
         uint256 requiredValue = UniversalBridgeLib.getRequiredMessageValue(chainId, DATA_LENGTH, gasLimit, maxFeePerGas);
         UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, requiredValue, maxFeePerGas);
 
