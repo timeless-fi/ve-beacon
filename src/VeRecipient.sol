@@ -53,6 +53,7 @@ abstract contract VeRecipient is CrossChainEnabled {
     /// Crosschain functions
     /// -----------------------------------------------------------------------
 
+    /// @notice Called by VeBeacon from Ethereum via bridge to update vetoken balance & supply info.
     function updateVeBalance(
         address user,
         int128 userBias,
@@ -78,12 +79,18 @@ abstract contract VeRecipient is CrossChainEnabled {
         emit UpdateVeBalance(user);
     }
 
+    /// @notice Called by owner from Ethereum via bridge to update the VeBeacon address.
+    /// @dev The beacon address needs to be updateable because VeBeacon needs to be redeployed
+    /// when support for a new network is added.
+    /// @param newBeacon The new address
     function setBeacon(address newBeacon) external onlyCrossChainSender(owner) {
         if (newBeacon == address(0)) revert VeRecipient__InvalidInput();
         beacon = newBeacon;
         emit SetBeacon(newBeacon);
     }
 
+    /// @notice Called by owner from Ethereum via bridge to update the owner address.
+    /// @param newOwner The new address
     function transferOwnership(address newOwner) external onlyCrossChainSender(owner) {
         if (newOwner == address(0)) revert VeRecipient__InvalidInput();
         owner = newOwner;
@@ -94,6 +101,11 @@ abstract contract VeRecipient is CrossChainEnabled {
     /// View functions
     /// -----------------------------------------------------------------------
 
+    /// @notice Computes the vetoken balance of a user. Returns 0 if the user's data hasn't
+    /// been broadcasted from VeBeacon. Exhibits the same time-decay behavior as regular
+    /// VotingEscrow contracts.
+    /// @param user The user address to query
+    /// @return The user's vetoken balance.
     function balanceOf(address user) external view returns (uint256) {
         // storage loads
         Point memory u = userData[user];
@@ -104,6 +116,13 @@ abstract contract VeRecipient is CrossChainEnabled {
         return uint256(veBalance);
     }
 
+    /// @notice Computes the total supply of the vetoken. Returns 0 if data hasn't
+    /// been broadcasted from VeBeacon. Exhibits the same time-decay behavior as regular
+    /// VotingEscrow contracts.
+    /// @dev The value may diverge from the correct value if `updateVeBalance()` hasn't been
+    /// called for 8 consecutive epochs (~2 months). This is because we limit the size of each
+    /// slopeChanges update to limit gas costs.
+    /// @return The vetoken's total supply
     function totalSupply() external view returns (uint256) {
         Point memory g = globalData;
         uint256 ti = (g.ts / (1 weeks)) * (1 weeks);
@@ -129,10 +148,17 @@ abstract contract VeRecipient is CrossChainEnabled {
         return uint256(uint128(g.bias));
     }
 
+    /// @notice Returns the timestamp a user's vetoken position was last updated. Returns 0 if the user's data
+    /// has never been broadcasted.
+    /// @dev Added for compatibility with kick() in gauge contracts.
+    /// @param user The user's address
+    /// @return The last update timestamp
     function user_point_history__ts(address user, uint256 /*epoch*/ ) external view returns (uint256) {
         return userData[user].ts;
     }
 
+    /// @notice Just returns 0.
+    /// @dev Added for compatibility with kick() in gauge contracts.
     function user_point_epoch(address /*user*/ ) external pure returns (uint256) {
         return 0;
     }
