@@ -4,12 +4,13 @@ pragma solidity ^0.8.4;
 import {CrossChainEnabled} from "openzeppelin-contracts/contracts/crosschain/CrossChainEnabled.sol";
 
 import "./base/Structs.sol";
+import {BoringOwnable} from "./base/BoringOwnable.sol";
 
 /// @title VeRecipient
 /// @author zefram.eth
 /// @notice Recipient on non-Ethereum networks that receives data from the Ethereum beacon
 /// and makes vetoken balances available on this network.
-abstract contract VeRecipient is CrossChainEnabled {
+abstract contract VeRecipient is CrossChainEnabled, BoringOwnable {
     /// -----------------------------------------------------------------------
     /// Errors
     /// -----------------------------------------------------------------------
@@ -22,7 +23,6 @@ abstract contract VeRecipient is CrossChainEnabled {
 
     event UpdateVeBalance(address indexed user);
     event SetBeacon(address indexed newBeacon);
-    event TransferOwnership(address indexed newOwner);
 
     /// -----------------------------------------------------------------------
     /// Constants
@@ -35,7 +35,6 @@ abstract contract VeRecipient is CrossChainEnabled {
     /// -----------------------------------------------------------------------
 
     address public beacon;
-    address public owner;
     mapping(address => Point) public userData;
     Point public globalData;
     mapping(uint256 => int128) public slopeChanges;
@@ -44,9 +43,8 @@ abstract contract VeRecipient is CrossChainEnabled {
     /// Constructor
     /// -----------------------------------------------------------------------
 
-    constructor(address beacon_, address owner_) {
+    constructor(address beacon_, address owner_) BoringOwnable(owner_) {
         beacon = beacon_;
-        owner = owner_;
     }
 
     /// -----------------------------------------------------------------------
@@ -79,22 +77,18 @@ abstract contract VeRecipient is CrossChainEnabled {
         emit UpdateVeBalance(user);
     }
 
-    /// @notice Called by owner from Ethereum via bridge to update the VeBeacon address.
+    /// -----------------------------------------------------------------------
+    /// Owner functions
+    /// -----------------------------------------------------------------------
+
+    /// @notice Called by owner to update the beacon address.
     /// @dev The beacon address needs to be updateable because VeBeacon needs to be redeployed
     /// when support for a new network is added.
     /// @param newBeacon The new address
-    function setBeacon(address newBeacon) external onlyCrossChainSender(owner) {
+    function setBeacon(address newBeacon) external onlyOwner {
         if (newBeacon == address(0)) revert VeRecipient__InvalidInput();
         beacon = newBeacon;
         emit SetBeacon(newBeacon);
-    }
-
-    /// @notice Called by owner from Ethereum via bridge to update the owner address.
-    /// @param newOwner The new address
-    function transferOwnership(address newOwner) external onlyCrossChainSender(owner) {
-        if (newOwner == address(0)) revert VeRecipient__InvalidInput();
-        owner = newOwner;
-        emit TransferOwnership(newOwner);
     }
 
     /// -----------------------------------------------------------------------

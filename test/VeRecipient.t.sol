@@ -22,6 +22,7 @@ contract VeRecipientTest is Test {
     MockVeBeacon beacon;
     MockVeRecipient recipient;
 
+    error BoringOwnable__NotOwner();
     error InvalidCrossChainSender(address actual, address expected);
 
     function setUp() public {
@@ -58,16 +59,6 @@ contract VeRecipientTest is Test {
         }
     }
 
-    function test_transferOwnership(address newOwner) public {
-        if (newOwner == address(0)) {
-            vm.expectRevert(VeRecipient.VeRecipient__InvalidInput.selector);
-            recipient.transferOwnership(newOwner);
-        } else {
-            recipient.transferOwnership(newOwner);
-            assertEq(recipient.owner(), newOwner, "didn't set new owner");
-        }
-    }
-
     function test_fail_updateVeBalanceAsRando(
         address user,
         int128 userBias,
@@ -92,21 +83,8 @@ contract VeRecipientTest is Test {
             recipient.setBeacon(newBeacon);
         } else {
             vm.startPrank(rando);
-            vm.expectRevert(abi.encodeWithSelector(InvalidCrossChainSender.selector, rando, address(this)));
+            vm.expectRevert(BoringOwnable__NotOwner.selector);
             recipient.setBeacon(newBeacon);
-            vm.stopPrank();
-        }
-    }
-
-    function test_fail_transferOwnershipAsRando(address newOwner) public {
-        address rando = address(0x69);
-        if (newOwner == address(0)) {
-            vm.expectRevert(VeRecipient.VeRecipient__InvalidInput.selector);
-            recipient.transferOwnership(newOwner);
-        } else {
-            vm.startPrank(rando);
-            vm.expectRevert(abi.encodeWithSelector(InvalidCrossChainSender.selector, rando, address(this)));
-            recipient.transferOwnership(newOwner);
             vm.stopPrank();
         }
     }
