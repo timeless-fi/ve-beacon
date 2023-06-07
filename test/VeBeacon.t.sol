@@ -208,6 +208,72 @@ contract VeBeaconTest is Test {
         prodBeacon.broadcastVeBalanceMultiple{value: value}(address(this), chainIdList, gasLimit, maxFeePerGas);
     }
 
+    function test_refund_broadcastVeBalance(uint256 extraValue) public {
+        extraValue = bound(extraValue, 0, 1e18 ether);
+
+        // deal ETH to this
+        deal(address(this), address(this).balance + extraValue);
+
+        // mint token
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+        deal(address(token), address(this), amount);
+
+        // lock for vetoken for 1 year
+        token.approve(address(votingEscrow), amount);
+        uint256 lockTime = 365 days;
+        votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+        // push balance to recipient
+        uint256 gasLimit = 1e6;
+        uint256 maxFeePerGas = 0.1 gwei;
+        uint256 value = prodBeacon.getRequiredMessageValue(UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas);
+        uint256 beforeBalance = address(this).balance;
+        prodBeacon.broadcastVeBalance{value: value + extraValue}(
+            address(this), UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas
+        );
+
+        if (extraValue >= block.basefee * 21000) {
+            assertEqDecimal(beforeBalance - address(this).balance, value, 18, "didn't get refund");
+        }
+    }
+
+    function test_refund_broadcastVeBalanceMultiple(uint256 extraValue) public {
+        extraValue = bound(extraValue, 0, 1e18 ether);
+
+        // deal ETH to this
+        deal(address(this), address(this).balance + extraValue);
+
+        // mint token
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+        deal(address(token), address(this), amount);
+
+        // lock for vetoken for 1 year
+        token.approve(address(votingEscrow), amount);
+        uint256 lockTime = 365 days;
+        votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+        // push balance to recipient
+        uint256[] memory chainIdList = new uint256[](5);
+        chainIdList[0] = UniversalBridgeLib.CHAINID_ARBITRUM;
+        chainIdList[1] = UniversalBridgeLib.CHAINID_OPTIMISM;
+        chainIdList[2] = UniversalBridgeLib.CHAINID_POLYGON;
+        chainIdList[3] = UniversalBridgeLib.CHAINID_BSC;
+        chainIdList[4] = UniversalBridgeLib.CHAINID_GNOSIS;
+        uint256 gasLimit = 1e6;
+        uint256 maxFeePerGas = 0.1 gwei;
+        uint256 value = prodBeacon.getRequiredMessageValue(UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas);
+        uint256 beforeBalance = address(this).balance;
+        prodBeacon.broadcastVeBalanceMultiple{value: value + extraValue}(
+            address(this), chainIdList, gasLimit, maxFeePerGas
+        );
+
+        if (extraValue >= block.basefee * 21000) {
+            assertEqDecimal(beforeBalance - address(this).balance, value, 18, "didn't get refund");
+        }
+    }
+
     function test_fail_userNotInitialized() public {
         vm.expectRevert(VeBeacon.VeBeacon__UserNotInitialized.selector);
         beacon.broadcastVeBalance(address(0x69), 0, 0, 0);
@@ -231,6 +297,8 @@ contract VeBeaconTest is Test {
         vm.expectRevert(VeBeacon.VeBeacon__EpochIsZero.selector);
         beacon.broadcastVeBalance(address(this), 0, 0, 0);
     }
+
+    receive() external payable {}
 
     /// -----------------------------------------------------------------------
     /// Internal helpers

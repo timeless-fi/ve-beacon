@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.4;
 
+import "solmate/utils/SafeTransferLib.sol";
+
 import "universal-bridge-lib/UniversalBridgeLib.sol";
 
 import "./VeRecipient.sol";
@@ -16,7 +18,6 @@ contract VeBeacon {
     /// -----------------------------------------------------------------------
 
     error VeBeacon__EpochIsZero();
-    error VeBeacon__LeftoverEth();
     error VeBeacon__UserNotInitialized();
 
     /// -----------------------------------------------------------------------
@@ -63,7 +64,7 @@ contract VeBeacon {
         payable
     {
         _broadcastVeBalance(user, chainId, gasLimit, maxFeePerGas);
-        if (address(this).balance != 0) revert VeBeacon__LeftoverEth();
+        _refundEthBalanceIfWorthIt();
     }
 
     /// @notice Broadcasts a user's vetoken balance to a list of other chains. Should use getRequiredMessageValue()
@@ -86,7 +87,7 @@ contract VeBeacon {
                 ++i;
             }
         }
-        if (address(this).balance != 0) revert VeBeacon__LeftoverEth();
+        _refundEthBalanceIfWorthIt();
     }
 
     /// @notice Computes the msg.value needed when calling broadcastVeBalance(). Only relevant for Arbitrum.
@@ -154,5 +155,11 @@ contract VeBeacon {
         UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, requiredValue, maxFeePerGas);
 
         emit BroadcastVeBalance(user, chainId);
+    }
+
+    function _refundEthBalanceIfWorthIt() internal {
+        if (address(this).balance == 0) return; // early return if beacon has no balance
+        if (address(this).balance < block.basefee * 21000) return; // early return if refunding ETH costs more than the refunded amount
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance);
     }
 }
