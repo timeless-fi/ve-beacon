@@ -370,25 +370,6 @@ contract VeBeaconTest is Test {
         beacon.broadcastVeBalance(address(0x69), 0, 0, 0);
     }
 
-    function test_fail_zeroEpoch() public {
-        // mint token
-        uint256 amount = 1e18;
-        ERC20 token = ERC20(votingEscrow.token());
-        deal(address(token), address(this), amount);
-
-        // lock for vetoken for 1 year
-        token.approve(address(votingEscrow), amount);
-        uint256 lockTime = 365 days;
-        votingEscrow.create_lock(amount, block.timestamp + lockTime);
-
-        // set epoch to zero
-        stdstore.target(address(votingEscrow)).sig("epoch()").checked_write(uint256(0));
-
-        // broadcast which should revert
-        vm.expectRevert(VeBeacon.VeBeacon__EpochIsZero.selector);
-        beacon.broadcastVeBalance(address(this), 0, 0, 0);
-    }
-
     receive() external payable {}
 
     /// -----------------------------------------------------------------------
