@@ -135,7 +135,7 @@ contract VeBeaconTest is Test {
         _verifyEquivalence(waitTime);
     }
 
-    function test_equivalence_broadcastMultiple(uint256 waitTime) public {
+    function test_equivalence_broadcastMultiple_singleUser(uint256 waitTime) public {
         waitTime = bound(waitTime, 0, SLOPE_CHANGES_LENGTH * 1 weeks);
 
         // mint token
@@ -153,6 +153,44 @@ contract VeBeaconTest is Test {
         beacon.broadcastVeBalanceMultiple(address(this), chainIdList, 0, 0);
 
         _verifyEquivalence(waitTime);
+    }
+
+    function test_equivalence_broadcastMultiple_multipleUsers(uint256 waitTime) external {
+        uint256 numUsers = 10;
+        waitTime = bound(waitTime, 0, SLOPE_CHANGES_LENGTH * 1 weeks);
+
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+
+        address[] memory users = new address[](numUsers);
+        for (uint8 i; i < numUsers; i++) {
+            address user = address(uint160(i + 0x69));
+
+            // whitelist user as locker
+            address owner = smartWalletChecker.owner();
+            vm.prank(owner);
+            smartWalletChecker.allowlistAddress(user);
+
+            vm.startPrank(user);
+
+            // mint token
+            deal(address(token), user, amount);
+
+            // lock for vetoken for 1 year
+            token.approve(address(votingEscrow), amount);
+            uint256 lockTime = 365 days;
+            votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+            vm.stopPrank();
+
+            users[i] = user;
+        }
+
+        // push balance to recipient
+        uint256[] memory chainIdList = new uint256[](10);
+        beacon.broadcastVeBalanceMultiple(users, chainIdList, 0, 0);
+
+        _verifyEquivalence(waitTime, users);
     }
 
     function test_getRequiredMessageValue() public {
@@ -268,6 +306,59 @@ contract VeBeaconTest is Test {
         prodBeacon.broadcastVeBalanceMultiple{value: value + extraValue}(
             address(this), chainIdList, gasLimit, maxFeePerGas
         );
+
+        if (extraValue >= block.basefee * 21000) {
+            assertEqDecimal(beforeBalance - address(this).balance, value, 18, "didn't get refund");
+        }
+    }
+
+    function test_refund_broadcastVeBalanceMultiple_multipleUsers(uint256 extraValue) public {
+        extraValue = bound(extraValue, 0, 1e18 ether);
+
+        // deal ETH to this
+        deal(address(this), address(this).balance + extraValue);
+
+        uint256 numUsers = 10;
+        uint256 amount = 1e18;
+        ERC20 token = ERC20(votingEscrow.token());
+
+        address[] memory users = new address[](numUsers);
+        for (uint8 i; i < numUsers; i++) {
+            address user = address(uint160(i + 0x69));
+
+            // whitelist user as locker
+            address owner = smartWalletChecker.owner();
+            vm.prank(owner);
+            smartWalletChecker.allowlistAddress(user);
+
+            vm.startPrank(user);
+
+            // mint token
+            deal(address(token), user, amount);
+
+            // lock for vetoken for 1 year
+            token.approve(address(votingEscrow), amount);
+            uint256 lockTime = 365 days;
+            votingEscrow.create_lock(amount, block.timestamp + lockTime);
+
+            vm.stopPrank();
+
+            users[i] = user;
+        }
+
+        // push balance to recipient
+        uint256[] memory chainIdList = new uint256[](5);
+        chainIdList[0] = UniversalBridgeLib.CHAINID_ARBITRUM;
+        chainIdList[1] = UniversalBridgeLib.CHAINID_OPTIMISM;
+        chainIdList[2] = UniversalBridgeLib.CHAINID_POLYGON;
+        chainIdList[3] = UniversalBridgeLib.CHAINID_BSC;
+        chainIdList[4] = UniversalBridgeLib.CHAINID_GNOSIS;
+        uint256 gasLimit = 1e6;
+        uint256 maxFeePerGas = 0.1 gwei;
+        uint256 value =
+            prodBeacon.getRequiredMessageValue(UniversalBridgeLib.CHAINID_ARBITRUM, gasLimit, maxFeePerGas) * numUsers;
+        uint256 beforeBalance = address(this).balance;
+        prodBeacon.broadcastVeBalanceMultiple{value: value + extraValue}(users, chainIdList, gasLimit, maxFeePerGas);
 
         if (extraValue >= block.basefee * 21000) {
             assertEqDecimal(beforeBalance - address(this).balance, value, 18, "didn't get refund");

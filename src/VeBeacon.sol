@@ -90,6 +90,36 @@ contract VeBeacon {
         _refundEthBalanceIfWorthIt();
     }
 
+    /// @notice Broadcasts multiple users' vetoken balances to a list of other chains. Should use getRequiredMessageValue()
+    /// to compute the msg.value required when calling this function (currently only applicable to Arbitrum).
+    /// @param userList the user addresses
+    /// @param chainIdList the chain ID of the target chains
+    /// @param gasLimit the gas limit of each call to the recipient
+    /// @param maxFeePerGas the max gas price used, only relevant for some chains (e.g. Arbitrum)
+    function broadcastVeBalanceMultiple(
+        address[] calldata userList,
+        uint256[] calldata chainIdList,
+        uint256 gasLimit,
+        uint256 maxFeePerGas
+    ) external payable {
+        uint256 userListLength = userList.length;
+        uint256 chainIdListLength = chainIdList.length;
+        for (uint256 i; i < userListLength;) {
+            for (uint256 j; j < chainIdListLength;) {
+                _broadcastVeBalance(userList[i], chainIdList[j], gasLimit, maxFeePerGas);
+
+                unchecked {
+                    ++j;
+                }
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+        _refundEthBalanceIfWorthIt();
+    }
+
     /// @notice Computes the msg.value needed when calling broadcastVeBalance(). Only relevant for Arbitrum.
     /// @param chainId the target chain's ID
     /// @param gasLimit the gas limit of the call to the recipient
