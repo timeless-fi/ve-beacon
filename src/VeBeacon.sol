@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.4;
 
+import "solmate/utils/SafeTransferLib.sol";
+
 import "universal-bridge-lib/UniversalBridgeLib.sol";
 
 import "./VeRecipient.sol";
@@ -15,8 +17,6 @@ contract VeBeacon {
     /// Errors
     /// -----------------------------------------------------------------------
 
-    error VeBeacon__EpochIsZero();
-    error VeBeacon__LeftoverEth();
     error VeBeacon__UserNotInitialized();
 
     /// -----------------------------------------------------------------------
@@ -63,7 +63,7 @@ contract VeBeacon {
         payable
     {
         _broadcastVeBalance(user, chainId, gasLimit, maxFeePerGas);
-        if (address(this).balance != 0) revert VeBeacon__LeftoverEth();
+        _refundEthBalanceIfWorthIt();
     }
 
     /// @notice Broadcasts a user's vetoken balance to a list of other chains. Should use getRequiredMessageValue()
@@ -86,7 +86,37 @@ contract VeBeacon {
                 ++i;
             }
         }
-        if (address(this).balance != 0) revert VeBeacon__LeftoverEth();
+        _refundEthBalanceIfWorthIt();
+    }
+
+    /// @notice Broadcasts multiple users' vetoken balances to a list of other chains. Should use getRequiredMessageValue()
+    /// to compute the msg.value required when calling this function (currently only applicable to Arbitrum).
+    /// @param userList the user addresses
+    /// @param chainIdList the chain ID of the target chains
+    /// @param gasLimit the gas limit of each call to the recipient
+    /// @param maxFeePerGas the max gas price used, only relevant for some chains (e.g. Arbitrum)
+    function broadcastVeBalanceMultiple(
+        address[] calldata userList,
+        uint256[] calldata chainIdList,
+        uint256 gasLimit,
+        uint256 maxFeePerGas
+    ) external payable {
+        uint256 userListLength = userList.length;
+        uint256 chainIdListLength = chainIdList.length;
+        for (uint256 i; i < userListLength;) {
+            for (uint256 j; j < chainIdListLength;) {
+                _broadcastVeBalance(userList[i], chainIdList[j], gasLimit, maxFeePerGas);
+
+                unchecked {
+                    ++j;
+                }
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+        _refundEthBalanceIfWorthIt();
     }
 
     /// @notice Computes the msg.value needed when calling broadcastVeBalance(). Only relevant for Arbitrum.
@@ -119,7 +149,6 @@ contract VeBeacon {
 
             // get global data
             epoch = votingEscrow.epoch();
-            if (epoch == 0) revert VeBeacon__EpochIsZero();
             (int128 globalBias, int128 globalSlope, uint256 globalTs,) = votingEscrow.point_history(epoch);
 
             // fetch slope changes in the range [currentEpochStartTimestamp + 1 weeks, currentEpochStartTimestamp + (SLOPE_CHANGES_LENGTH + 1) * 1 weeks]
@@ -154,5 +183,11 @@ contract VeBeacon {
         UniversalBridgeLib.sendMessage(chainId, recipientAddress, data, gasLimit, requiredValue, maxFeePerGas);
 
         emit BroadcastVeBalance(user, chainId);
+    }
+
+    function _refundEthBalanceIfWorthIt() internal {
+        if (address(this).balance == 0) return; // early return if beacon has no balance
+        if (address(this).balance < block.basefee * 21000) return; // early return if refunding ETH costs more than the refunded amount
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance);
     }
 }

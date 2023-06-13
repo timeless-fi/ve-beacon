@@ -14,7 +14,6 @@ contract MockVeBeacon is VeBeacon {
 
         // get global data
         epoch = votingEscrow.epoch();
-        if (epoch == 0) revert VeBeacon__EpochIsZero();
         (int128 globalBias, int128 globalSlope, uint256 globalTs,) = votingEscrow.point_history(epoch);
 
         // fetch slope changes in the range [currentEpochStartTimestamp + 1 weeks, currentEpochStartTimestamp + (SLOPE_CHANGES_LENGTH + 1) * 1 weeks]

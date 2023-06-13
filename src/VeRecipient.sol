@@ -45,6 +45,7 @@ abstract contract VeRecipient is CrossChainEnabled, BoringOwnable {
 
     constructor(address beacon_, address owner_) BoringOwnable(owner_) {
         beacon = beacon_;
+        emit SetBeacon(beacon_);
     }
 
     /// -----------------------------------------------------------------------
