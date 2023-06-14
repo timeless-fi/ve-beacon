@@ -20,15 +20,14 @@ contract DeployRecipientScript is CREATE3Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        address owner = vm.envAddress("OWNER");
-
         // deploy recipient
         if (block.chainid == UniversalBridgeLib.CHAINID_ARBITRUM) {
             recipient = VeRecipient(
                 create3.deploy(
                     getCreate3ContractSalt("VeRecipient"),
                     bytes.concat(
-                        type(VeRecipientArbitrum).creationCode, abi.encode(getCreate3Contract("VeBeacon"), owner)
+                        type(VeRecipientArbitrum).creationCode,
+                        abi.encode(getCreate3Contract("VeBeacon"), vm.envAddress("OWNER_ARBITRUM"))
                     )
                 )
             );
@@ -37,7 +36,8 @@ contract DeployRecipientScript is CREATE3Script {
                 create3.deploy(
                     getCreate3ContractSalt("VeRecipient"),
                     bytes.concat(
-                        type(VeRecipientOptimism).creationCode, abi.encode(getCreate3Contract("VeBeacon"), owner)
+                        type(VeRecipientOptimism).creationCode,
+                        abi.encode(getCreate3Contract("VeBeacon"), vm.envAddress("OWNER_OPTIMISM"))
                     )
                 )
             );
@@ -46,7 +46,8 @@ contract DeployRecipientScript is CREATE3Script {
                 create3.deploy(
                     getCreate3ContractSalt("VeRecipient"),
                     bytes.concat(
-                        type(VeRecipientPolygon).creationCode, abi.encode(getCreate3Contract("VeBeacon"), owner)
+                        type(VeRecipientPolygon).creationCode,
+                        abi.encode(getCreate3Contract("VeBeacon"), vm.envAddress("OWNER_POLYGON"))
                     )
                 )
             );
@@ -56,7 +57,9 @@ contract DeployRecipientScript is CREATE3Script {
                     getCreate3ContractSalt("VeRecipient"),
                     bytes.concat(
                         type(VeRecipientAMB).creationCode,
-                        abi.encode(getCreate3Contract("VeBeacon"), owner, UniversalBridgeLib.BRIDGE_BSC)
+                        abi.encode(
+                            getCreate3Contract("VeBeacon"), vm.envAddress("OWNER_BSC"), UniversalBridgeLib.BRIDGE_BSC
+                        )
                     )
                 )
             );
@@ -66,7 +69,11 @@ contract DeployRecipientScript is CREATE3Script {
                     getCreate3ContractSalt("VeRecipient"),
                     bytes.concat(
                         type(VeRecipientAMB).creationCode,
-                        abi.encode(getCreate3Contract("VeBeacon"), owner, UniversalBridgeLib.BRIDGE_GNOSIS)
+                        abi.encode(
+                            getCreate3Contract("VeBeacon"),
+                            vm.envAddress("OWNER_GNOSIS"),
+                            UniversalBridgeLib.BRIDGE_GNOSIS
+                        )
                     )
                 )
             );
